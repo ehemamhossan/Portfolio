@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shortlist — Resume Screener</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+:root{
+  --bg:#F6F7F5; --surface:#FFFFFF; --ink:#1C2321; --ink-soft:#5B655F;
+  --line:#DCE1DC; --accent:#0E6E5E; --accent-ink:#FFFFFF; --accent-soft:#E4F1EC;
+  --warn:#B4762A; --warn-soft:#FBF0DF; --bad:#A23B3B; --bad-soft:#FBEAEA;
+  --radius:10px;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181A; --surface:#1C2124; --ink:#EDEFEC; --ink-soft:#9AA39C;
+    --line:#2C3336; --accent:#4FC7A9; --accent-ink:#0B1210; --accent-soft:#1E332C;
+    --warn:#E0A857; --warn-soft:#2E2517; --bad:#E08080; --bad-soft:#301B1B;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181A; --surface:#1C2124; --ink:#EDEFEC; --ink-soft:#9AA39C;
+  --line:#2C3336; --accent:#4FC7A9; --accent-ink:#0B1210; --accent-soft:#1E332C;
+  --warn:#E0A857; --warn-soft:#2E2517; --bad:#E08080; --bad-soft:#301B1B;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  min-height:100%;
+}
+.wrap{max-width:1180px; margin:0 auto; padding:28px 20px 80px;}
+header.top{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:22px; flex-wrap:wrap;}
+header.top h1{font-size:21px; font-weight:700; margin:0; letter-spacing:-0.01em;}
+header.top p{margin:2px 0 0; color:var(--ink-soft); font-size:13.5px;}
+.theme-btn{border:1px solid var(--line); background:var(--surface); color:var(--ink-soft); border-radius:8px; padding:7px 11px; font-size:12.5px; cursor:pointer;}
+
+.split{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+@media (max-width:760px){ .split{grid-template-columns:1fr;} }
+
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px; display:flex; flex-direction:column;}
+.panel h2{font-size:14px; margin:0 0 3px; font-weight:600;}
+.panel .sub{font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;}
+
+textarea#jd{
+  width:100%; flex:1; min-height:220px; resize:vertical; border:1px solid var(--line); border-radius:8px;
+  padding:12px; font-size:13.5px; line-height:1.5; background:var(--bg); color:var(--ink); font-family:inherit;
+}
+textarea#jd:focus{outline:2px solid var(--accent); outline-offset:1px;}
+.jd-count{font-size:11.5px; color:var(--ink-soft); margin-top:6px; text-align:right;}
+
+.dropzone{
+  flex:1; min-height:220px; border:1.5px dashed var(--line); border-radius:8px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center; padding:18px; cursor:pointer; transition:border-color .15s, background .15s;
+}
+.dropzone.drag{border-color:var(--accent); background:var(--accent-soft);}
+.dropzone svg{opacity:.55; margin-bottom:8px;}
+.dropzone strong{font-size:13.5px;}
+.dropzone span{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+.dropzone input{display:none;}
+
+.filelist{margin-top:10px; max-height:150px; overflow-y:auto; font-size:12.5px;}
+.filelist .frow{display:flex; align-items:center; justify-content:space-between; padding:6px 2px; border-bottom:1px solid var(--line);}
+.filelist .frow:last-child{border-bottom:none;}
+.filelist .fname{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:8px;}
+.filelist .rm{background:none; border:none; color:var(--ink-soft); cursor:pointer; font-size:15px; line-height:1; padding:2px 6px;}
+.filelist .rm:hover{color:var(--bad);}
+
+.actions{display:flex; align-items:center; gap:12px; justify-content:center; margin:24px 0;}
+.run-btn{
+  background:var(--accent); color:var(--accent-ink); border:none; border-radius:8px; padding:12px 26px;
+  font-size:14.5px; font-weight:600; cursor:pointer;
+}
+.run-btn:disabled{opacity:.45; cursor:not-allowed;}
+.run-btn:focus-visible{outline:2px solid var(--ink); outline-offset:2px;}
+.progress-text{font-size:12.5px; color:var(--ink-soft);}
+
+section#results{display:none;}
+.results-head{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;}
+.results-head h2{font-size:16px; margin:0;}
+.threshold{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-soft);}
+.threshold input[type=range]{width:120px;}
+
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;
+  display:flex; gap:16px; align-items:center; margin-bottom:10px; flex-wrap:wrap;
+}
+.card .rank{font-size:12px; color:var(--ink-soft); width:22px; flex-shrink:0;}
+.card .score-ring{
+  width:52px; height:52px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:700; border:3px solid var(--line);
+}
+.score-strong{border-color:var(--accent); color:var(--accent);}
+.score-mid{border-color:var(--warn); color:var(--warn);}
+.score-low{border-color:var(--bad); color:var(--bad);}
+.card .info{flex:1; min-width:180px;}
+.card .info .cname{font-size:14.5px; font-weight:600; margin:0 0 4px;}
+.card .info .ccontact{font-size:12.5px; color:var(--ink-soft); display:flex; flex-direction:column; gap:2px;}
+.card .tags{display:flex; gap:5px; flex-wrap:wrap; max-width:340px;}
+.tag{background:var(--accent-soft); color:var(--accent); font-size:11px; padding:3px 8px; border-radius:20px;}
+.view-btn{background:var(--surface); border:1px solid var(--line); color:var(--ink); padding:9px 16px; border-radius:8px; font-size:13px; cursor:pointer; flex-shrink:0;}
+.view-btn:hover{border-color:var(--accent); color:var(--accent);}
+
+.badge{font-size:11px; padding:3px 8px; border-radius:20px; font-weight:600;}
+.badge-strong{background:var(--accent-soft); color:var(--accent);}
+.badge-mid{background:var(--warn-soft); color:var(--warn);}
+.badge-low{background:var(--bad-soft); color:var(--bad);}
+
+.empty{text-align:center; color:var(--ink-soft); font-size:13px; padding:40px 0;}
+
+.modal-bg{display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:50; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface); border-radius:var(--radius); max-width:760px; width:100%; padding:22px; border:1px solid var(--line);}
+.modal-top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;}
+.modal-top h3{margin:0 0 4px; font-size:16px;}
+.modal-top p{margin:0; font-size:12.5px; color:var(--ink-soft);}
+.modal-close{background:none; border:none; font-size:20px; color:var(--ink-soft); cursor:pointer; line-height:1;}
+.modal-body{max-height:70vh; overflow-y:auto; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:0;}
+.modal-body iframe{width:100%; height:60vh; border:none; display:block; background:#fff;}
+.modal-body .docx-preview{padding:20px; font-size:12.5px; line-height:1.6; color:var(--ink);}
+.modal-body .docx-preview p{margin:0 0 8px;}
+.modal-body .loading{padding:40px; text-align:center; font-size:12.5px; color:var(--ink-soft);}
+.modal-actions{margin-top:14px; display:flex; gap:10px;}
+.modal-actions a, .modal-actions button{font-size:12.5px; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink); text-decoration:none; cursor:pointer;}
+.modal-actions a.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+
+.sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Shortlist</h1>
+      <p>Paste a job description, drop in resumes, get a ranked shortlist.</p>
+    </div>
+    <button class="theme-btn" id="themeToggle" type="button">Dark mode</button>
+  </header>
+
+  <div class="split">
+    <div class="panel">
+      <h2>1. Job description</h2>
+      <p class="sub">Paste the full posting — role, requirements, skills, experience.</p>
+      <textarea id="jd" placeholder="Paste your job description here...
+
+e.g.
+We are hiring a Site Safety Officer with OSHA 30 certification, 3+ years of construction site experience, strong knowledge of fall protection and scaffolding safety, and excellent communication skills."></textarea>
+      <div class="jd-count" id="jdCount">0 words</div>
+    </div>
+
+    <div class="panel">
+      <h2>2. Resumes</h2>
+      <p class="sub">Bulk upload PDF or DOCX files — drag and drop or browse.</p>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload resumes">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v12m0-12l-4 4m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        <strong>Drop resumes here</strong>
+        <span>or click to browse · PDF & DOCX · bulk supported</span>
+        <input type="file" id="fileInput" multiple accept=".pdf,.docx">
+      </div>
+      <div class="filelist" id="fileList"></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="run-btn" id="runBtn" disabled type="button">Screen resumes</button>
+    <span class="progress-text" id="progressText"></span>
+  </div>
+
+  <section id="results">
+    <div class="results-head">
+      <h2 id="resultsTitle">Shortlist</h2>
+      <div class="threshold">
+        <label style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="degreeFilter" checked>
+          Bachelor's degree required
+        </label>
+        <span>Min. match</span>
+        <input type="range" id="thresholdSlider" min="0" max="100" value="0">
+        <span id="thresholdVal">0%</span>
+      </div>
+    </div>
+    <div id="cardsHolder"></div>
+  </section>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="modal-top">
+      <div>
+        <h3 id="modalName">—</h3>
+        <p id="modalContact">—</p>
+      </div>
+      <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="tags" id="modalTags" style="margin-bottom:10px;"></div>
+    <div class="modal-body" id="modalBody"><div class="loading">Loading resume…</div></div>
+    <div class="modal-actions">
+      <a id="modalOpenFile" class="primary" target="_blank" rel="noopener">Open in new tab</a>
+      <button id="modalCopyEmail" type="button">Copy email</button>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const STOPWORDS = new Set("a an the and or but if while of to in on for with at by from up about into over after under again further then once here there all any both each few more most other some such no nor not only own same so than too very s t can will just don should now is are was were be been being have has had do does did this that these those i you he she it we they what which who whom as it's you're we're they're i'm he's she's must shall would could ought responsible responsibilities requirements requirement required require skills skill experience experienced years year job role position candidate candidates looking seeking company team work working plus preferred etc including strong ability knowledge excellent good demonstrated proven".split(" "));
+
+let resumeFiles = []; // {id,file,name}
+let jdKeywords = []; // [{word, weight}]
+
+const jdEl = document.getElementById('jd');
+const jdCount = document.getElementById('jdCount');
+jdEl.addEventListener('input', ()=>{
+  const words = jdEl.value.trim().split(/\s+/).filter(Boolean);
+  jdCount.textContent = (jdEl.value.trim()? words.length : 0) + ' words';
+  checkReady();
+});
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileListEl = document.getElementById('fileList');
+
+dropzone.addEventListener('click', ()=>fileInput.click());
+dropzone.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); fileInput.click(); }});
+['dragenter','dragover'].forEach(ev=>dropzone.addEventListener(ev, e=>{e.preventDefault(); dropzone.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>dropzone.addEventListener(ev, e=>{e.preventDefault(); dropzone.classList.remove('drag');}));
+dropzone.addEventListener('drop', e=>{ addFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e=>{ addFiles(e.target.files); fileInput.value=''; });
+
+function addFiles(fileArr){
+  Array.from(fileArr).forEach(f=>{
+    const ext = f.name.split('.').pop().toLowerCase();
+    if(ext!=='pdf' && ext!=='docx') return;
+    resumeFiles.push({id: crypto.randomUUID(), file:f, name:f.name});
+  });
+  renderFileList();
+  checkReady();
+}
+function removeFile(id){
+  resumeFiles = resumeFiles.filter(r=>r.id!==id);
+  renderFileList();
+  checkReady();
+}
+function renderFileList(){
+  fileListEl.innerHTML = resumeFiles.map(r=>`
+    <div class="frow">
+      <span class="fname" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
+      <button class="rm" data-id="${r.id}" aria-label="Remove ${escapeHtml(r.name)}">&times;</button>
+    </div>`).join('');
+  fileListEl.querySelectorAll('.rm').forEach(b=>b.addEventListener('click', ()=>removeFile(b.dataset.id)));
+}
+
+const runBtn = document.getElementById('runBtn');
+function checkReady(){
+  runBtn.disabled = !(jdEl.value.trim().length>10 && resumeFiles.length>0);
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function tokenize(text){
+  return (text.toLowerCase().match(/[a-z0-9][a-z0-9+.#-]*/g) || []).filter(w=>w.length>1 && !STOPWORDS.has(w));
+}
+
+function buildJdKeywords(jdText){
+  const tokens = tokenize(jdText);
+  const freq = {};
+  tokens.forEach(t=>freq[t]=(freq[t]||0)+1);
+  // bigrams for compound skills
+  const bigramFreq = {};
+  for(let i=0;i<tokens.length-1;i++){
+    const bg = tokens[i]+' '+tokens[i+1];
+    bigramFreq[bg] = (bigramFreq[bg]||0)+1;
+  }
+  const lower = jdText.toLowerCase();
+  const boostSections = ['requirements','qualifications','skills','must have','responsibilities'];
+  let list = Object.entries(freq).map(([word,count])=>{
+    let weight = count;
+    boostSections.forEach(sec=>{
+      const idx = lower.indexOf(sec);
+      if(idx!==-1 && lower.indexOf(word, idx) - idx < 400 && lower.indexOf(word, idx) > idx) weight += 1;
+    });
+    return {word, weight};
+  });
+  const bigrams = Object.entries(bigramFreq).filter(([,c])=>c>=1).map(([word,count])=>({word, weight:count+1}));
+  list = list.concat(bigrams);
+  list.sort((a,b)=>b.weight-a.weight);
+  return list.slice(0,40);
+}
+
+async function extractText(file){
+  const ext = file.name.split('.').pop().toLowerCase();
+  const buf = await file.arrayBuffer();
+  if(ext==='pdf'){
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    let text='';
+    for(let p=1;p<=pdf.numPages;p++){
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      let lastY = null;
+      content.items.forEach(item=>{
+        if(!item.str){ return; }
+        const y = item.transform[5];
+        if(lastY!==null && Math.abs(y-lastY)>2){
+          text += '\n';
+        } else if(text.length>0 && !text.endsWith('\n')){
+          text += ' ';
+        }
+        text += item.str;
+        lastY = y;
+      });
+      text += '\n\n';
+    }
+    return text;
+  } else if(ext==='docx'){
+    const result = await mammoth.extractRawText({arrayBuffer:buf});
+    return result.value;
+  }
+  return '';
+}
+
+function extractEmail(text){
+  const m = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  return m? m[0] : '';
+}
+function extractPhone(text){
+  const m = text.match(/(\+?\d{1,3}[\s.-]?)?(\(?\d{2,4}\)?[\s.-]?){2,4}\d{2,4}/g);
+  if(!m) return '';
+  const candidate = m.find(x=>x.replace(/\D/g,'').length>=7 && x.replace(/\D/g,'').length<=14);
+  return candidate ? candidate.trim() : '';
+}
+const NAME_SKIP = new Set(['resume','cv','curriculum','vitae','profile','summary','objective','contact','address','personal','details','information','page']);
+function looksLikeName(line){
+  if(line.length<3 || line.length>45) return false;
+  if(/[@\d]/.test(line)) return false;
+  if(!/^[A-Za-z][A-Za-z.\s'-]+$/.test(line)) return false;
+  const words = line.trim().split(/\s+/);
+  if(words.length<2 || words.length>4) return false;
+  const lower = line.toLowerCase();
+  if([...NAME_SKIP].some(w=>lower.includes(w))) return false;
+  // reject if it reads like a section header (all caps single word or ends with colon)
+  if(line.endsWith(':')) return false;
+  // prefer lines where each word is capitalized (Title Case)
+  const titleCase = words.every(w=> /^[A-Z][a-z'.-]*$/.test(w) || /^[A-Z]{1,}$/.test(w));
+  return titleCase;
+}
+function extractName(text, filename){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  // pass 1: strict title-case name in the header area (first ~12 lines)
+  for(const line of lines.slice(0,12)){
+    if(looksLikeName(line)) return line;
+  }
+  // pass 2: look right before the first email/phone occurrence, in case header spacing differs
+  const emailIdx = lines.findIndex(l=>/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(l));
+  if(emailIdx>0){
+    for(let i=Math.max(0,emailIdx-3); i<emailIdx; i++){
+      if(looksLikeName(lines[i])) return lines[i];
+    }
+  }
+  // pass 3: any short, mostly-alphabetic line near the top, relaxed
+  for(const line of lines.slice(0,8)){
+    if(line.length>2 && line.length<40 && !/[@\d/]/.test(line) && line.split(/\s+/).length<=4 && /^[A-Za-z][A-Za-z.\s'-]+$/.test(line)){
+      return line;
+    }
+  }
+  // last resort: filename, cleaned up
+  return filename.replace(/\.(pdf|docx)$/i,'').replace(/[_-]+/g,' ');
+}
+
+function detectBachelor(text){
+  const lower = text.toLowerCase();
+  const degreeTerms = /(bachelor|b\.?\s?sc\.?|b\.?\s?a\.?\b|b\.?\s?com\.?|b\.?\s?tech\.?|b\.?\s?eng\.?|\bbba\b|\bbca\b|\bllb\b|b\.?\s?ed\.?|undergraduate degree)/;
+  const match = lower.match(degreeTerms);
+  if(!match) return false;
+  const pursuingTerms = /(pursuing|currently enrolled|expected graduation|ongoing|in progress|candidate for|ongoing degree)/;
+  const idx = match.index;
+  const window = lower.slice(Math.max(0,idx-60), idx+60);
+  if(pursuingTerms.test(window)) return false;
+  return true;
+}
+
+function scoreResume(text, jdKw){
+  const resumeTokens = new Set(tokenize(text));
+  const lower = text.toLowerCase();
+  let matched = [], totalWeight=0, gotWeight=0;
+  jdKw.forEach(k=>{
+    totalWeight += k.weight;
+    const hit = k.word.includes(' ') ? lower.includes(k.word) : resumeTokens.has(k.word);
+    if(hit){ gotWeight += k.weight; matched.push(k.word); }
+  });
+  const pct = totalWeight>0 ? Math.round((gotWeight/totalWeight)*100) : 0;
+  return {pct, matched};
+}
+
+let lastResults = [];
+
+runBtn.addEventListener('click', async ()=>{
+  runBtn.disabled = true;
+  const progressText = document.getElementById('progressText');
+  jdKeywords = buildJdKeywords(jdEl.value);
+  const results = [];
+  for(let i=0;i<resumeFiles.length;i++){
+    const r = resumeFiles[i];
+    progressText.textContent = `Reading ${i+1} of ${resumeFiles.length}: ${r.name}`;
+    try{
+      const text = await extractText(r.file);
+      if(!text || text.trim().length<20){
+        results.push({name:r.name.replace(/\.(pdf|docx)$/i,''), email:'', phone:'', pct:0, matched:[], text:'(Could not extract readable text from this file.)', file:r.file, error:true});
+        continue;
+      }
+      const {pct, matched} = scoreResume(text, jdKeywords);
+      results.push({
+        name: extractName(text, r.name),
+        email: extractEmail(text),
+        phone: extractPhone(text),
+        pct, matched, text, file: r.file,
+        hasBachelor: detectBachelor(text)
+      });
+    }catch(e){
+      results.push({name:r.name.replace(/\.(pdf|docx)$/i,''), email:'', phone:'', pct:0, matched:[], text:'(Error reading this file: '+e.message+')', file:r.file, error:true});
+    }
+  }
+  results.sort((a,b)=>b.pct-a.pct);
+  lastResults = results;
+  progressText.textContent = '';
+  runBtn.disabled = false;
+  renderResults();
+});
+
+const thresholdSlider = document.getElementById('thresholdSlider');
+const thresholdVal = document.getElementById('thresholdVal');
+const degreeFilter = document.getElementById('degreeFilter');
+thresholdSlider.addEventListener('input', ()=>{ thresholdVal.textContent = thresholdSlider.value+'%'; renderResults(); });
+degreeFilter.addEventListener('change', renderResults);
+
+function bandFor(pct){
+  if(pct>=65) return {cls:'strong', label:'Strong match'};
+  if(pct>=35) return {cls:'mid', label:'Partial match'};
+  return {cls:'low', label:'Weak match'};
+}
+
+function renderResults(){
+  const section = document.getElementById('results');
+  const holder = document.getElementById('cardsHolder');
+  const title = document.getElementById('resultsTitle');
+  section.style.display = 'block';
+  const min = parseInt(thresholdSlider.value,10);
+  const requireDegree = degreeFilter.checked;
+  const excludedNoDegree = requireDegree ? lastResults.filter(r=>!r.hasBachelor).length : 0;
+  const filtered = lastResults.filter(r=> r.pct>=min && (!requireDegree || r.hasBachelor));
+  title.textContent = `Shortlist — ${filtered.length} of ${lastResults.length} candidates`;
+  if(filtered.length===0){
+    holder.innerHTML = `<div class="empty">No candidates meet this match threshold${requireDegree? " with a completed bachelor's degree" : ''}. Lower the slider${requireDegree? ', or turn off the degree filter,' : ''} and review the job description keywords.</div>`;
+    return;
+  }
+  const note = excludedNoDegree>0 ? `<div class="empty" style="padding:0 0 12px;text-align:left;">${excludedNoDegree} candidate${excludedNoDegree===1?'':'s'} hidden — no completed bachelor's degree detected in their resume.</div>` : '';
+  holder.innerHTML = note + filtered.map((r,idx)=>{
+    const band = bandFor(r.pct);
+    const tags = r.matched.slice(0,5).map(m=>`<span class="tag">${escapeHtml(m)}</span>`).join('');
+    return `<div class="card">
+      <span class="rank">#${idx+1}</span>
+      <div class="score-ring score-${band.cls}">${r.pct}%</div>
+      <div class="info">
+        <p class="cname">${escapeHtml(r.name || 'Unnamed candidate')} <span class="badge badge-${band.cls}">${band.label}</span></p>
+        <div class="ccontact">
+          <span>${r.phone? escapeHtml(r.phone): 'No phone found'}</span>
+          <span>${r.email? escapeHtml(r.email): 'No email found'}</span>
+        </div>
+      </div>
+      <div class="tags">${tags}</div>
+      <button class="view-btn" data-idx="${lastResults.indexOf(r)}">View resume</button>
+    </div>`;
+  }).join('');
+  holder.querySelectorAll('.view-btn').forEach(b=>b.addEventListener('click', ()=>openModal(lastResults[b.dataset.idx])));
+}
+
+const modalBg = document.getElementById('modalBg');
+document.getElementById('modalClose').addEventListener('click', ()=>modalBg.classList.remove('open'));
+modalBg.addEventListener('click', e=>{ if(e.target===modalBg) modalBg.classList.remove('open'); });
+
+async function openModal(r){
+  document.getElementById('modalName').textContent = r.name || 'Unnamed candidate';
+  const contactEl = document.getElementById('modalContact');
+  const parts = [r.phone, r.email].filter(Boolean);
+  contactEl.innerHTML = parts.length ? parts.map(p=>escapeHtml(p)).join('<br>') : 'No contact details found';
+
+  const tagsEl = document.getElementById('modalTags');
+  tagsEl.innerHTML = (r.matched||[]).slice(0,8).map(m=>`<span class="tag">${escapeHtml(m)}</span>`).join('');
+
+  const bodyEl = document.getElementById('modalBody');
+  bodyEl.innerHTML = '<div class="loading">Loading resume…</div>';
+
+  const openLink = document.getElementById('modalOpenFile');
+  const url = URL.createObjectURL(r.file);
+  openLink.href = url;
+  openLink.textContent = 'Open ' + r.file.name + ' in new tab';
+
+  document.getElementById('modalCopyEmail').onclick = ()=>{
+    if(r.email) navigator.clipboard.writeText(r.email);
+  };
+
+  modalBg.classList.add('open');
+
+  const ext = r.file.name.split('.').pop().toLowerCase();
+  if(ext==='pdf'){
+    bodyEl.innerHTML = `<iframe src="${url}" title="Resume preview"></iframe>`;
+  } else if(ext==='docx'){
+    try{
+      const buf = await r.file.arrayBuffer();
+      const result = await mammoth.convertToHtml({arrayBuffer: buf});
+      bodyEl.innerHTML = `<div class="docx-preview">${result.value || '<p>No preview available for this file.</p>'}</div>`;
+    }catch(e){
+      bodyEl.innerHTML = `<div class="loading">Could not render a preview. Use "Open in new tab" instead.</div>`;
+    }
+  } else {
+    bodyEl.innerHTML = `<div class="loading">Preview not available for this file type. Use "Open in new tab" instead.</div>`;
+  }
+}
+
+const themeBtn = document.getElementById('themeToggle');
+themeBtn.addEventListener('click', ()=>{
+  const cur = document.documentElement.getAttribute('data-theme');
+  if(cur==='dark'){ document.documentElement.setAttribute('data-theme','light'); themeBtn.textContent='Dark mode'; }
+  else { document.documentElement.setAttribute('data-theme','dark'); themeBtn.textContent='Light mode'; }
+});
+</script>
+</body>
+</html>
